@@ -5,8 +5,8 @@ import sys
 
 # Припускаємо, що ці конфігурації правильно визначені та імпортовані
 # sys.path.append("./") # Якщо тести запускаються з кореневої папки, а translitua - підпапка
-from translitua.configs.reverse_ua import Lat2UkrKMU
-from translitua.configs.ua import (
+from .configs.reverse_ua import Lat2UkrKMU
+from .configs.ua import (
     UkrainianKMU,
     UkrainianSimple,
     UkrainianWWS,
@@ -21,7 +21,7 @@ from translitua.configs.ua import (
     UkrainianNational1996,
     UkrainianPassport2004Alt,
 )
-from translitua.configs.ru import (
+from .configs.ru import (
     RussianSimple,
     RussianGOST2006,
     RussianICAO,
