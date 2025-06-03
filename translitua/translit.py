@@ -1252,7 +1252,7 @@ RussianInternationalPassport = RussianInternationalPassport1997
 ALL_TRANSLITERATIONS = ALL_UKRAINIAN + ALL_RUSSIAN
 
 
-def translit(src, table=UkrainianKMU, preserve_case=True):
+def translit(src, table=UkrainianKMU, preserve_case=True, reverse=False):
     """Transliterates given unicode `src` text
     to transliterated variant according to a given transliteration table.
     Official ukrainian transliteration is used by default
@@ -1264,6 +1264,8 @@ def translit(src, table=UkrainianKMU, preserve_case=True):
     :param preserve_case: convert result to uppercase if source is uppercased
     (see the example below for the difference that flag makes)
     :type preserve_case: bool
+    :param reverse: If True, decode Latin → Cyrillic.
+    :type reverse: bool
     :returns: transliterated string
     :rtype: str
 
@@ -1361,9 +1363,49 @@ def translit(src, table=UkrainianKMU, preserve_case=True):
     Cyomki
     >>> print(translit(u"Цыц", RussianISO9SystemB))
     Cy'cz
+
+    >>> translit("Dmytro Zghurovskyi", reverse=True)
+    'Дмитро Згуровський'
+    
+    >>> translit("Niuton", reverse=True)     # KMU: kh, iu, ia …
+    'Ньютон'
+    
+    >>> translit("Дмитро Згуровський")
+    'Dmytro Zghurovskyi'
     """
 
     src = text_type(src)
+
+    # ---------- REVERSE  (Latin → Cyrillic) ----------
+    if reverse:
+        # Build reverse mapping once per table
+        if not hasattr(table, "_REVERSE_PATTERN"):
+            # 1) base symbols
+            rev_map = {v: k for k, v in table._MAIN_TRANSLIT_TABLE.items()}
+
+            # 2) special and first-char cases (if present)
+            for attr in ("_SPECIAL_CASES", "_FIRST_CHARACTERS"):
+                if hasattr(table, attr):
+                    for k, v in getattr(table, attr).items():
+                        rev_map[v] = k
+
+            # 3) add upper-/capitalized variants
+            extra = {}
+            for lat, cyr in rev_map.items():
+                extra[lat.capitalize()] = cyr.capitalize()
+                extra[lat.upper()] = cyr.upper()
+            rev_map.update(extra)
+
+            # Compile longest-first regexp
+            pattern = "|".join(sorted(rev_map, key=len, reverse=True))
+            table._REVERSE_PATTERN = re.compile(pattern)
+            table._REVERSE_MAP = rev_map
+
+        return table._REVERSE_PATTERN.sub(
+            lambda m: table._REVERSE_MAP[m.group()],
+            src)
+
+    # ---------- FORWARD  (Cyrillic → Latin) ----------
     src_is_upper = src.isupper()
 
     if hasattr(table, "DELETE_PATTERN"):
