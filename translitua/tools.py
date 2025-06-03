@@ -18,8 +18,19 @@ def add_uppercase(table):
     True
     """
     out = table.copy()
-    out.update({k.capitalize(): v.capitalize() for k, v in table.items()})
-    out.update({k.upper(): v.upper() for k, v in table.items()})
+    # Do not overwrite existing keys: custom mappings for uppercase may be
+    # defined explicitly in the source table (e.g. "ЗГ" -> "ZGh").  When we
+    # generate capitalised/upper variants we ensure we only add them if they are
+    # missing so that such explicit definitions are preserved.
+    for k, v in table.items():
+        cap_key, cap_val = k.capitalize(), v.capitalize()
+        if cap_key not in out:
+            out[cap_key] = cap_val
+
+        upper_key, upper_val = k.upper(), v.upper()
+        if upper_key not in out:
+            out[upper_key] = upper_val
+
     return out
 
 
