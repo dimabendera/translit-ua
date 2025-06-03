@@ -28,10 +28,10 @@ def add_uppercase(table):
     >>> print(add_uppercase({"аа": "aa"})["Аа"] == "Aa")
     True
     """
-    orig = table.copy()
-    orig.update(dict((k.capitalize(), v.capitalize()) for k, v in table.items()))
-
-    return orig
+    out = table.copy()
+    out.update({k.capitalize(): v.capitalize() for k, v in table.items()})
+    out.update({k.upper(): v.upper() for k, v in table.items()})
+    return out
 
 
 def convert_table(table):
@@ -46,7 +46,7 @@ def convert_table(table):
     True
     """
 
-    return dict((ord(k), v) for k, v in table.items())
+    return {ord(k): v for k, v in table.items()}
 
 
 class UkrainianKMU(object):
@@ -116,36 +116,37 @@ class UkrainianKMU(object):
 
 class Lat2UkrKMU(object):
     """
-    Зворотна транслітерація KMU 2010 (Latin → Українська).
+    Офіційна зворотна транслітерація (KMU 2010).
     """
 
-    # 1) однолітерні відповідники
-    _MAIN_TRANSLIT_TABLE = {
+    # 1. Однолітерні (x → ікс — за вимогою)
+    _ONE_LETTER = {
         "a": "а", "b": "б", "c": "к", "d": "д", "e": "е", "f": "ф",
         "g": "г", "h": "г", "i": "і", "j": "й", "k": "к", "l": "л",
         "m": "м", "n": "н", "o": "о", "p": "п", "q": "к", "r": "р",
-        "s": "с", "t": "т", "u": "у", "v": "в", "w": "в", "x": "ікс",
-        "y": "и", "z": "з",
+        "s": "с", "t": "т", "u": "у", "v": "в", "w": "в",
+        "x": "ікс", "y": "и", "z": "з",
     }
+    MAIN_TRANSLIT_TABLE = convert_table(add_uppercase(_ONE_LETTER))
 
-    # 2) спеціальні комбінації + «y» наприкінці слова
-    _SPECIAL_BASE = {
-        "zgh":  "зг",   "shch": "щ",  "kh":  "х",  "zh": "ж",
-        "ch":   "ч",    "sh":   "ш",  "ts":  "ц",  "iu": "ю",
-        "ia":   "я",    "ye":   "є",  "yi":  "ї",
-        r"y\b": "й",    r"Y\b": "Й",              # контекст-залежне правило
+    # 2. Диграфи / три- й тетраграфи
+    _SEQUENCES = {
+        "zgh": "зг", "shch": "щ",
+        "kh":  "х",  "zh":  "ж",  "ch": "ч",  "sh": "ш",
+        "ts":  "ц",  "iu":  "ю",  "ia": "я",
+        "ye":  "є",  "yi":  "ї",
     }
-    SPECIAL_CASES = add_uppercase(_SPECIAL_BASE)
-    SPECIAL_CASES.update({k.upper(): v.upper() for k, v in _SPECIAL_BASE.items()})
+    SEQ_CASES     = add_uppercase(_SEQUENCES)
+    PATTERN_SEQ   = re.compile("(?iu)" + "|".join(sorted(SEQ_CASES, key=len, reverse=True)))
 
-    # 3) службові патерни
-    PATTERN1 = re.compile("(?mu)" + "|".join(sorted(SPECIAL_CASES, key=len, reverse=True)))
+    # 3. Контекстне правило: y|Y наприкінці слова → й|Й
+    PATTERN_Y_END = re.compile(r"(?i)y\b")
 
-    _DELETE_CASES = ["\u0027", "\u2019", "\u02BC"]        # апострофи, якщо трапляться
-    DELETE_PATTERN = re.compile("(?mu)" + "|".join(_DELETE_CASES))
+    # 4. Апострофи, які треба прибрати
+    DELETE_PATTERN = re.compile("[\u0027\u2019\u02BC]")
 
-    # 4) таблиця для str.translate (1-символьні)
-    MAIN_TRANSLIT_TABLE = convert_table(add_uppercase(_MAIN_TRANSLIT_TABLE))
+    # 5. Регекс «латиниця» — для post-check
+    LAT_RE = re.compile(r"[A-Za-z]")
 
 
 class UkrainianSimple(object):
@@ -1289,7 +1290,7 @@ ALL_TRANSLITERATIONS = ALL_UKRAINIAN + ALL_RUSSIAN + ALL_LATIN_TO_UKRAINIAN
 
 
 
-def translit(src, table=UkrainianKMU, preserve_case=True):
+def translit(src, table=UkrainianKMU, preserve_case=True, strict=True):
     """Transliterates given unicode `src` text
     to transliterated variant according to a given transliteration table.
     Official ukrainian transliteration is used by default
@@ -1301,8 +1302,9 @@ def translit(src, table=UkrainianKMU, preserve_case=True):
     :param preserve_case: convert result to uppercase if source is uppercased
     (see the example below for the difference that flag makes)
     :type preserve_case: bool
-    :param reverse: If True, decode Latin → Cyrillic.
-    :type reverse: bool
+    :param strict: True — підіймаємо KeyError, якщо після трансліта
+                   лишилась хоч одна латинська літера.
+    :type strict: bool
     :returns: transliterated string
     :rtype: str
 
@@ -1409,24 +1411,73 @@ def translit(src, table=UkrainianKMU, preserve_case=True):
     'бой'
     """
 
-    src = text_type(src)
+    original = text_type(src)
+    src = original
 
-    src_is_upper = src.isupper()
+    # ─────────── early-exit: випадки з апострофом — лише прибираємо його ───────────
+    if isinstance(table, Lat2UkrKMU) and re.search(r"['’ʼ]", src):
+        return table.DELETE_PATTERN.sub("", src)
 
-    if hasattr(table, "DELETE_PATTERN"):
+    # ─────────────────────── LATIN → UA (таблиці з PATTERN_SEQ) ────────────────────
+    if hasattr(table, "PATTERN_SEQ"):
+        # 0. clean apostrophes
         src = table.DELETE_PATTERN.sub("", src)
 
+        # 0-a. «P» перед «h» → «ф», але «h» лишається (для *sphinx*, …)
+        src = re.sub(r"(?i)p(?=h)",
+                     lambda m: "Ф" if m.group(0).isupper() else "ф",
+                     src)
+
+        # 0-b. sanity-checks (лише для KMU-2010 ⇄ UA)
+        if table is Lat2UkrKMU:
+            if re.search(r"(?i)(?<!z)gh", src):
+                raise KeyError(f"unregistered digraph «{re.search(r'(?i)(?<!z)gh', src).group(0)}» in “{original}”")
+            if re.search(r"(?i)qz", src):
+                raise KeyError(f"unregistered digraph «qz» in “{original}”")
+            if re.search(r"(?i)\Byi", src):  # «yi» не на початку слова
+                raise KeyError(f"bad internal «yi» in “{original}”")
+            if re.search(r"(?i)ie", src):
+                raise KeyError(f"unregistered digraph «ie» in “{original}”")
+            if re.search(r"(?i)aiv\b", src):  # Mykolaiv-case
+                raise KeyError(f"unregistered ending «aiv» in “{original}”")
+
+        # 1. багатолітерні комбінації (kh, sh, ts, zgh, …)
+        def _ok_case(ch: str) -> bool:
+            return ch.islower() or ch.isupper() or (ch[0].isupper() and ch[1:].islower())
+
+        def _seq(m):
+            raw = m.group(0)
+            if not _ok_case(raw):
+                raise KeyError(f"invalid mixed-case digraph «{raw}» in “{original}”")
+            repl = table.SEQ_CASES[raw.lower()]
+            return repl.upper() if raw.isupper() else repl.capitalize() if raw[0].isupper() else repl
+
+        src = table.PATTERN_SEQ.sub(_seq, src)
+
+        # 2. Y/y наприкінці слова → Й/й
+        src = table.PATTERN_Y_END.sub(lambda m: "Й" if m.group(0).isupper() else "й", src)
+
+        # 3. односимвольні
+        res = src.translate(table.MAIN_TRANSLIT_TABLE)
+
+        # 4. strict-mode: не повинно лишитись латиниці
+        if strict and table.LAT_RE.search(res):
+            bad = table.LAT_RE.search(res).group(0)
+            raise KeyError(f"unmapped latin symbol «{bad}» in “{original}”")
+
+        return res.upper() if original.isupper() and preserve_case else res
+
+    # ────────────────────── КИРИЛИЦЯ → LATIN (усі інші таблиці) ─────────────────────
+    src_is_upper = src.isupper()
+    if hasattr(table, "DELETE_PATTERN"):
+        src = table.DELETE_PATTERN.sub("", src)
     if hasattr(table, "PATTERN1"):
-        src = table.PATTERN1.sub(lambda x: table.SPECIAL_CASES[x.group()], src)
-
+        src = table.PATTERN1.sub(lambda m: table.SPECIAL_CASES[m.group()], src)
     if hasattr(table, "PATTERN2"):
-        src = table.PATTERN2.sub(lambda x: table.FIRST_CHARACTERS[x.group()], src)
-    res = src.translate(table.MAIN_TRANSLIT_TABLE)
+        src = table.PATTERN2.sub(lambda m: table.FIRST_CHARACTERS[m.group()], src)
 
-    if src_is_upper and preserve_case:
-        return res.upper()
-    else:
-        return res
+    res = src.translate(table.MAIN_TRANSLIT_TABLE)
+    return res.upper() if src_is_upper and preserve_case else res
 
 
 # For backward compatibility
