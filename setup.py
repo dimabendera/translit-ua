@@ -1,7 +1,7 @@
 
 import translitua
 
-from setuptools import setup
+from setuptools import setup, find_packages
 from codecs import open
 from os import path
 
@@ -52,9 +52,7 @@ setup(
 
     keywords='ukrainian transliteration',
 
-    packages=[
-        'translitua',
-    ],
+    packages=find_packages(exclude=('tests',)),
 
     package_data={'': ['LICENSE']},
 )
