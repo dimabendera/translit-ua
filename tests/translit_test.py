@@ -20,6 +20,10 @@ from translitua.translit import (translit,
     RussianDriverLicense,
     RussianISO9SystemB,
     Lat2UkrKMU,
+    Lat2UkrSimple,
+    Lat2UkrWWS,
+    Lat2RuSimple,
+    Lat2RuISO9SystemB,
 )
 
 # ---------------------------------------------------------------------------
@@ -136,3 +140,49 @@ def test_russian_schemes(src, scheme, expected):
 )
 def test_positive(latin, expected):
     assert translit(latin, Lat2UkrKMU) == expected
+
+@pytest.mark.parametrize(
+    "latin,expected",
+    [
+        ("Kharkiv", "Харків"),
+        ("shch", "щ"),
+        ("ja", "я"),
+    ],
+)
+def test_lat2ukr_simple(latin, expected):
+    assert translit(latin, Lat2UkrSimple) == expected
+
+@pytest.mark.parametrize(
+    "latin,expected",
+    [
+        ("x", "х"),
+        ("šč", "щ"),
+        ("ž", "ж"),
+    ],
+)
+def test_lat2ukr_wws(latin, expected):
+    assert translit(latin, Lat2UkrWWS) == expected
+
+
+@pytest.mark.parametrize(
+    "latin,expected",
+    [
+        ("Shchuka", "Щука"),
+        ("Andrey", "Андрей"),
+        ("yozh", "ёж"),
+    ],
+)
+def test_lat2ru_simple(latin, expected):
+    assert translit(latin, Lat2RuSimple) == expected
+
+
+@pytest.mark.parametrize(
+    "latin,expected",
+    [
+        ("shh", "щ"),
+        ("e'", "э"),
+        ("y'", "ы"),
+    ],
+)
+def test_lat2ru_iso9b(latin, expected):
+    assert translit(latin, Lat2RuISO9SystemB) == expected
