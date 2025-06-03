@@ -5,7 +5,8 @@ import sys
 
 # Припускаємо, що ці конфігурації правильно визначені та імпортовані
 # sys.path.append("./") # Якщо тести запускаються з кореневої папки, а translitua - підпапка
-from .configs.reverse_ua import Lat2UkrKMU
+from .configs.reverse_ua import Lat2UkrKMU, Lat2UkrSimple, Lat2UkrWWS
+from .configs.reverse_ru import Lat2RuSimple, Lat2RuISO9SystemB
 from .configs.ua import (
     UkrainianKMU,
     UkrainianSimple,
@@ -71,9 +72,11 @@ ALL_RUSSIAN = [
 # Backward compatibility
 RussianInternationalPassport = RussianInternationalPassport1997
 
-ALL_LATIN_TO_UKRAINIAN = [Lat2UkrKMU]
-
-ALL_TRANSLITERATIONS = ALL_UKRAINIAN + ALL_RUSSIAN + ALL_LATIN_TO_UKRAINIAN
+ALL_LATIN_TO_UKRAINIAN = [Lat2UkrKMU, Lat2UkrSimple, Lat2UkrWWS]
+ALL_LATIN_TO_RUSSIAN = [Lat2RuSimple, Lat2RuISO9SystemB]
+ALL_TRANSLITERATIONS = (
+    ALL_UKRAINIAN + ALL_RUSSIAN + ALL_LATIN_TO_UKRAINIAN + ALL_LATIN_TO_RUSSIAN
+)
 
 
 def translit(src, table=UkrainianKMU, preserve_case=True, strict=True):
@@ -243,6 +246,11 @@ __all__ = [
     "RussianISO9SystemA",
     "RussianISOR9Table2",
     "Lat2UkrKMU",
+    "Lat2UkrSimple",
+    "Lat2UkrWWS",
+    "Lat2RuSimple",
+    "Lat2RuISO9SystemB",
+    "ALL_LATIN_TO_RUSSIAN",
 ]
 
 if __name__ == "__main__":
