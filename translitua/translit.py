@@ -114,6 +114,40 @@ class UkrainianKMU(object):
     DELETE_PATTERN = re.compile("(?mu)" + "|".join(_DELETE_CASES))
 
 
+class Lat2UkrKMU(object):
+    """
+    Зворотна транслітерація KMU 2010 (Latin → Українська).
+    """
+
+    # 1) однолітерні відповідники
+    _MAIN_TRANSLIT_TABLE = {
+        "a": "а", "b": "б", "c": "к", "d": "д", "e": "е", "f": "ф",
+        "g": "г", "h": "г", "i": "і", "j": "й", "k": "к", "l": "л",
+        "m": "м", "n": "н", "o": "о", "p": "п", "q": "к", "r": "р",
+        "s": "с", "t": "т", "u": "у", "v": "в", "w": "в", "x": "ікс",
+        "y": "и", "z": "з",
+    }
+
+    # 2) спеціальні комбінації + «y» наприкінці слова
+    _SPECIAL_BASE = {
+        "zgh":  "зг",   "shch": "щ",  "kh":  "х",  "zh": "ж",
+        "ch":   "ч",    "sh":   "ш",  "ts":  "ц",  "iu": "ю",
+        "ia":   "я",    "ye":   "є",  "yi":  "ї",
+        r"y\b": "й",    r"Y\b": "Й",              # контекст-залежне правило
+    }
+    SPECIAL_CASES = add_uppercase(_SPECIAL_BASE)
+    SPECIAL_CASES.update({k.upper(): v.upper() for k, v in _SPECIAL_BASE.items()})
+
+    # 3) службові патерни
+    PATTERN1 = re.compile("(?mu)" + "|".join(sorted(SPECIAL_CASES, key=len, reverse=True)))
+
+    _DELETE_CASES = ["\u0027", "\u2019", "\u02BC"]        # апострофи, якщо трапляться
+    DELETE_PATTERN = re.compile("(?mu)" + "|".join(_DELETE_CASES))
+
+    # 4) таблиця для str.translate (1-символьні)
+    MAIN_TRANSLIT_TABLE = convert_table(add_uppercase(_MAIN_TRANSLIT_TABLE))
+
+
 class UkrainianSimple(object):
     """
     Borrowed from https://github.com/barseghyanartur/transliterate/blob/master/src/transliterate/contrib/languages/uk/data/python32.py
@@ -1249,10 +1283,13 @@ ALL_RUSSIAN = [
 # Backward compatibility
 RussianInternationalPassport = RussianInternationalPassport1997
 
-ALL_TRANSLITERATIONS = ALL_UKRAINIAN + ALL_RUSSIAN
+ALL_LATIN_TO_UKRAINIAN = [Lat2UkrKMU] 
+
+ALL_TRANSLITERATIONS = ALL_UKRAINIAN + ALL_RUSSIAN + ALL_LATIN_TO_UKRAINIAN
 
 
-def translit(src, table=UkrainianKMU, preserve_case=True, reverse=False):
+
+def translit(src, table=UkrainianKMU, preserve_case=True):
     """Transliterates given unicode `src` text
     to transliterated variant according to a given transliteration table.
     Official ukrainian transliteration is used by default
@@ -1364,48 +1401,16 @@ def translit(src, table=UkrainianKMU, preserve_case=True, reverse=False):
     >>> print(translit(u"Цыц", RussianISO9SystemB))
     Cy'cz
 
-    >>> translit("Dmytro Zghurovskyi", reverse=True)
-    'Дмитро Згуровський'
-    
-    >>> translit("Niuton", reverse=True)     # KMU: kh, iu, ia …
-    'Ньютон'
-    
-    >>> translit("Дмитро Згуровський")
-    'Dmytro Zghurovskyi'
+    >>> translit("BMW", Lat2UkrKMU)
+    'БМВ'
+    >>> translit("Kharkiv", Lat2UkrKMU)
+    'Харків'
+    >>> translit("boy", Lat2UkrKMU)
+    'бой'
     """
 
     src = text_type(src)
 
-    # ---------- REVERSE  (Latin → Cyrillic) ----------
-    if reverse:
-        # Build reverse mapping once per table
-        if not hasattr(table, "_REVERSE_PATTERN"):
-            # 1) base symbols
-            rev_map = {v: k for k, v in table._MAIN_TRANSLIT_TABLE.items()}
-
-            # 2) special and first-char cases (if present)
-            for attr in ("_SPECIAL_CASES", "_FIRST_CHARACTERS"):
-                if hasattr(table, attr):
-                    for k, v in getattr(table, attr).items():
-                        rev_map[v] = k
-
-            # 3) add upper-/capitalized variants
-            extra = {}
-            for lat, cyr in rev_map.items():
-                extra[lat.capitalize()] = cyr.capitalize()
-                extra[lat.upper()] = cyr.upper()
-            rev_map.update(extra)
-
-            # Compile longest-first regexp
-            pattern = "|".join(sorted(rev_map, key=len, reverse=True))
-            table._REVERSE_PATTERN = re.compile(pattern)
-            table._REVERSE_MAP = rev_map
-
-        return table._REVERSE_PATTERN.sub(
-            lambda m: table._REVERSE_MAP[m.group()],
-            src)
-
-    # ---------- FORWARD  (Cyrillic → Latin) ----------
     src_is_upper = src.isupper()
 
     if hasattr(table, "DELETE_PATTERN"):
@@ -1457,6 +1462,7 @@ __all__ = [
     "RussianISO9SystemB",
     "RussianISO9SystemA",
     "RussianISOR9Table2",
+    "Lat2UkrKMU",
 ]
 
 
