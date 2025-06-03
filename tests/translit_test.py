@@ -8,7 +8,7 @@ import pytest
 
 sys.path.append("./")
 
-from translitua import (translit,
+from translitua.translit import (translit,
     UkrainianSimple,
     UkrainianWWS,
     UkrainianBritish,
