@@ -1,5 +1,7 @@
 # translit-ua
 
+[Версія українською](README.ua.md)
+
 
 Transliteration (romanization, latinization) for Ukrainian and russian languages with various transliteration tables (including official ones).
 Translit-ua has 13 transliteration tables for the Ukrainian language:
@@ -32,6 +34,13 @@ Translit-ua also has 10 transliteration tables for the russian language:
 - RussianISO9SystemB (ISO 9:1995, System B, no diacritics)
 
 
+Translit-ua can also transliterate *from* Latin back to Cyrillic.  For
+Ukrainian there are tables `Lat2UkrKMU`, `Lat2UkrSimple` and
+`Lat2UkrWWS`, while for Russian there are `Lat2RuSimple` and
+`Lat2RuISO9SystemB`.  They are grouped in
+`ALL_LATIN_TO_UKRAINIAN` and `ALL_LATIN_TO_RUSSIAN` respectively.
+
+
 The minor difference in those tables is that the common apostrophe sign ' is used in every table.
 
 For convenience, all Ukrainian tables are listed in ALL_UKRAINIAN variable, and all russian tables are listed in ALL_RUSSIAN variable. In ALL_TRANSLITERATIONS variable, you might find the complete list of tables.
@@ -40,7 +49,13 @@ Translit-ua works with python 2.6+ and python 3+ and has good doctests coverage.
 
 ## Installation
 
-Install from PyPI.
+Install the latest version directly from GitHub:
+
+```bash
+$ pip install git+https://github.com/dimabendera/translit-ua.git
+```
+
+You can also install the library from PyPI as usual:
 
 ```bash
 $ pip install translitua
@@ -68,6 +83,17 @@ $ pip install translitua
     Только в уборную - и сразу же возвращайся.""", RussianSimple
     )
     u"Ne vyhodi iz komnaty, ne sovershaj oshibku.\nZachem tebe Solntse, esli ty kurish' Shipku?\nZa dver'ju bessmyslenno vse, osobenno - vozglas schast'ja.\nTol'ko v ubornuju - i srazu zhe vozvraschajsja."
+
+    >>> from translitua import Lat2UkrKMU
+    >>> translit("Kharkiv", Lat2UkrKMU)
+    'Харків'
+
+    >>> from translitua import Lat2RuSimple
+    >>> translit("SCHUKA", Lat2RuSimple)
+    'ЩУКА'
+
+    >>> translit("ЗГУРОВСЬКИЙ", preserve_case=False)
+    'ZGhUROVSKYI'
 ```
 
 More about [Ukrainian transliteration](https://en.wikipedia.org/wiki/Romanization_of_Ukrainian)
